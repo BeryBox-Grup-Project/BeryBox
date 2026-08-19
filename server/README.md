@@ -15,7 +15,7 @@ Frontend dikerjakan orang lain, paralel. Kalau path, nama field, enum, atau stat
 5. JSON **camelCase**, kecuali token login: `access_token`.
 6. Error body selalu `{ "message": "English short message" }`. Jangan kirim stack trace ke client.
 7. `app.js` **export app tanpa `listen`**. `listen` hanya di `bin/www` atau `server.js`.
-8. Jangan commit `.env`. Private key Gemini & ImageKit hanya di server.
+8. Jangan commit `.env`. API key Gemini/Groq dan private key ImageKit hanya di server.
 9. Tes **jangan** hit jaringan nyata (mock Gemini, ImageKit, Nominatim, Socket.io).
 10. Coverage statements / branches / functions / lines **> 90%**.
 
@@ -29,7 +29,7 @@ Frontend dikerjakan orang lain, paralel. Kalau path, nama field, enum, atau stat
 | `dotenv`, `jsonwebtoken`, `bcryptjs` | cookie-session, passport |
 | `socket.io` | ws murni |
 | Jest + Supertest | Mocha, Vitest |
-| `@google/generative-ai`, `imagekit` | OpenAI SDK, Cloudinary |
+| `@google/generative-ai`, `groq-sdk`, `imagekit` | OpenAI SDK, Cloudinary |
 | `cors`, `helmet`, `express-rate-limit`, `nodemon` | — |
 
 `package.json` sudah berisi express/sequelize/pg/jwt/bcrypt/dotenv. **Tambah** package di atas. `config/config.json` masih template MySQL — **wajib diubah ke postgres** dan baca env.
@@ -802,8 +802,9 @@ Body: `{ "message": "ke mana donasi buku anak dekat sini?" }`
 Server:
 
 1. Ambil org `approved` + item `public` `available` terdekat (Haversine, max 5).
-2. Kirim ke Gemini sebagai konteks + standar barang layak. Model: `process.env.GEMINI_MODEL`.
-3. Jangan biarkan model mengarang id. `suggestions` **hanya** dari query DB.
+2. Kirim ke Gemini sebagai provider utama dengan konteks + standar barang layak. Model: `process.env.GEMINI_MODEL`.
+3. Jika Gemini gagal menghasilkan response valid, fallback ke Groq dengan konteks dan instruksi sistem yang sama. Model: `process.env.GROQ_MODEL`.
+4. Jangan biarkan model mengarang id. `suggestions` **hanya** dari query DB.
 
 Response **persis**:
 
@@ -827,7 +828,7 @@ Response **persis**:
 }
 ```
 
-`suggestions` boleh `[]`. Gemini gagal → 502 `{ "message": "AI service unavailable" }`.
+`suggestions` boleh `[]`. Jika Gemini dan Groq sama-sama gagal → 502 `{ "message": "AI service unavailable" }`.
 
 System prompt wajib menyebut: jangan sarankan makanan kedaluwarsa, obat, senjata; sarankan hanya id yang ada di konteks.
 

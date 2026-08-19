@@ -47,8 +47,38 @@ async function itemOwnerAuthorization(req, res, next) {
   }
 }
 
+async function conversationParticipantAuthorization(req, res, next) {
+  try {
+    const { Conversation } = require('../models');
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      const error = new Error('Not found');
+      error.status = 404;
+      return next(error);
+    }
+
+    const conversation = await Conversation.findByPk(id);
+    if (!conversation) {
+      const error = new Error('Not found');
+      error.status = 404;
+      return next(error);
+    }
+    if (![conversation.userAId, conversation.userBId].includes(req.user.id)) {
+      const error = new Error('Forbidden');
+      error.status = 403;
+      return next(error);
+    }
+
+    req.conversation = conversation;
+    return next();
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
   adminAuthorization,
   organizationAuthorization,
   itemOwnerAuthorization,
+  conversationParticipantAuthorization,
 };

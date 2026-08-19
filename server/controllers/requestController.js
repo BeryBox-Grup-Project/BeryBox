@@ -12,6 +12,7 @@ const { suggestShipping } = require('../helpers/shipping');
 const { settleCredit } = require('../helpers/credit');
 const { normalizeConversationPair } = require('../helpers/conversationPair');
 const { stripCoordinates } = require('../helpers/geoPrivacy');
+const { emitNotification } = require('../socket');
 
 const REQUEST_TYPES = ['claim', 'org_offer', 'barter'];
 const REQUEST_FIELDS = [
@@ -206,6 +207,19 @@ async function create(req, res, next) {
     if (req.body.type === 'org_offer') request = await createOrgOffer(req);
     if (req.body.type === 'barter') request = await createBarter(req);
 
+    const notificationType = request.type === 'claim' ? 'claim' : 'offer';
+    const action = request.type === 'claim'
+      ? 'claimed your item'
+      : request.type === 'org_offer'
+        ? 'offered you an item'
+        : 'sent you a barter offer';
+    emitNotification(request.toUserId, {
+      type: notificationType,
+      requestId: request.id,
+      conversationId: null,
+      message: `${req.authUser.username} ${action}`,
+    });
+
     return res.status(201).json(requestResponse(request));
   } catch (error) {
     return next(error);
@@ -272,7 +286,18 @@ async function acceptStandardRequest(request, shippingMethod, transaction) {
   validateShipping(request, item, fromUser, shippingMethod);
   await request.update({ status: 'accepted', shippingMethod }, { transaction });
 
+  let rejectedClaims = [];
   if (request.type === 'claim') {
+    rejectedClaims = await Request.findAll({
+      where: {
+        id: { [Op.ne]: request.id },
+        itemId: request.itemId,
+        type: 'claim',
+        status: 'pending',
+      },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
     await Request.update(
       { status: 'rejected' },
       {
@@ -288,7 +313,13 @@ async function acceptStandardRequest(request, shippingMethod, transaction) {
   }
 
   await item.update({ status: 'pending' }, { transaction });
-  await findOrCreateConversation(request.fromUserId, request.toUserId, item.id, transaction);
+  const conversation = await findOrCreateConversation(
+    request.fromUserId,
+    request.toUserId,
+    item.id,
+    transaction,
+  );
+  return { conversation, rejectedClaims };
 }
 
 async function acceptBarter(request, transaction) {
@@ -326,7 +357,12 @@ async function acceptBarter(request, transaction) {
   await item.update({ status: 'completed' }, { transaction });
   await targetItem.update({ status: 'completed' }, { transaction });
   await request.update({ status: 'completed', shippingMethod: null }, { transaction });
-  await findOrCreateConversation(request.fromUserId, request.toUserId, targetItem.id, transaction);
+  return findOrCreateConversation(
+    request.fromUserId,
+    request.toUserId,
+    targetItem.id,
+    transaction,
+  );
 }
 
 async function completeStandardRequest(request, transaction) {
@@ -339,6 +375,7 @@ async function completeStandardRequest(request, transaction) {
 async function update(req, res, next) {
   const transaction = await sequelize.transaction();
   try {
+    const notifications = [];
     if (!hasExactFields(req.body, ['status', 'shippingMethod'])) {
       throw createError(400, 'Validation error');
     }
@@ -363,15 +400,57 @@ async function update(req, res, next) {
       if (request.status !== 'pending') throw createError(400, 'Validation error');
       if (request.type === 'barter') {
         if (shippingMethod !== undefined) throw createError(400, 'Validation error');
-        await acceptBarter(request, transaction);
+        const conversation = await acceptBarter(request, transaction);
+        notifications.push({
+          userId: request.fromUserId,
+          payload: {
+            type: 'accepted',
+            requestId: request.id,
+            conversationId: conversation.id,
+            message: 'Your barter request was accepted',
+          },
+        });
       } else {
-        await acceptStandardRequest(request, shippingMethod, transaction);
+        const { conversation, rejectedClaims } = await acceptStandardRequest(
+          request,
+          shippingMethod,
+          transaction,
+        );
+        notifications.push({
+          userId: request.fromUserId,
+          payload: {
+            type: 'accepted',
+            requestId: request.id,
+            conversationId: conversation.id,
+            message: 'Your request was accepted',
+          },
+        });
+        rejectedClaims.forEach((rejectedClaim) => {
+          notifications.push({
+            userId: rejectedClaim.fromUserId,
+            payload: {
+              type: 'rejected',
+              requestId: rejectedClaim.id,
+              conversationId: null,
+              message: 'Your request was rejected',
+            },
+          });
+        });
       }
     } else if (status === 'rejected') {
       if (request.status !== 'pending' || shippingMethod !== undefined) {
         throw createError(400, 'Validation error');
       }
       await request.update({ status: 'rejected' }, { transaction });
+      notifications.push({
+        userId: request.fromUserId,
+        payload: {
+          type: 'rejected',
+          requestId: request.id,
+          conversationId: null,
+          message: 'Your request was rejected',
+        },
+      });
     } else {
       if (request.type === 'barter' || request.status !== 'accepted' || shippingMethod !== undefined) {
         throw createError(400, 'Validation error');
@@ -380,6 +459,7 @@ async function update(req, res, next) {
     }
 
     await transaction.commit();
+    notifications.forEach(({ userId, payload }) => emitNotification(userId, payload));
     return res.status(200).json(requestResponse(request));
   } catch (error) {
     await transaction.rollback();
@@ -433,9 +513,20 @@ async function redeemCredit(req, res, next) {
     );
     await targetItem.update({ status: 'completed' }, { transaction });
     await request.update({ status: 'completed' }, { transaction });
-    await findOrCreateConversation(request.fromUserId, request.toUserId, targetItem.id, transaction);
+    const conversation = await findOrCreateConversation(
+      request.fromUserId,
+      request.toUserId,
+      targetItem.id,
+      transaction,
+    );
 
     await transaction.commit();
+    emitNotification(request.fromUserId, {
+      type: 'accepted',
+      requestId: request.id,
+      conversationId: conversation.id,
+      message: 'Your credit redemption was completed',
+    });
     return res.status(200).json(requestResponse(request));
   } catch (error) {
     await transaction.rollback();

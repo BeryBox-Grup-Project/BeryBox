@@ -12,6 +12,15 @@ function errorHandler(error, req, res, next) {
   } else if (error.name === 'SequelizeValidationError') {
     status = 400;
     message = 'Validation error';
+  } else if (error.name === 'SequelizeUniqueConstraintError') {
+    status = 400;
+    if (error.fields && Object.hasOwn(error.fields, 'email')) {
+      message = 'Email already registered';
+    } else if (error.fields && Object.hasOwn(error.fields, 'username')) {
+      message = 'Username already taken';
+    } else {
+      message = 'Validation error';
+    }
   } else if (status === 500) {
     message = 'Internal server error';
   }

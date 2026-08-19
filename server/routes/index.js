@@ -8,6 +8,8 @@ const ConversationController = require('../controllers/conversationController');
 const MessageController = require('../controllers/messageController');
 const OrganizationController = require('../controllers/organizationController');
 const AdminController = require('../controllers/adminController');
+const ReviewController = require('../controllers/reviewController');
+const ReportController = require('../controllers/reportController');
 const authentication = require('../middlewares/authentication');
 const {
   itemOwnerAuthorization,
@@ -105,5 +107,8 @@ router.patch(
   adminAuthorization,
   AdminController.resolveReport,
 );
+
+router.post('/reviews', authentication, ReviewController.create);
+router.post('/reports', authentication, ReportController.create);
 
 module.exports = router;

@@ -3,6 +3,7 @@ const rateLimit = require('express-rate-limit');
 const AuthController = require('../controllers/authController');
 const ImageController = require('../controllers/imageController');
 const ItemController = require('../controllers/itemController');
+const RequestController = require('../controllers/requestController');
 const authentication = require('../middlewares/authentication');
 const { itemOwnerAuthorization } = require('../middlewares/authorization');
 
@@ -30,5 +31,11 @@ router.get('/items/:id', authentication, ItemController.detail);
 router.post('/items', authentication, ItemController.create);
 router.patch('/items/:id', authentication, itemOwnerAuthorization, ItemController.update);
 router.delete('/items/:id', authentication, itemOwnerAuthorization, ItemController.cancel);
+
+router.post('/requests', authentication, RequestController.create);
+router.get('/requests/incoming', authentication, RequestController.incoming);
+router.get('/requests/outgoing', authentication, RequestController.outgoing);
+router.patch('/requests/:id', authentication, RequestController.update);
+router.post('/requests/:id/redeem-credit', authentication, RequestController.redeemCredit);
 
 module.exports = router;

@@ -1,6 +1,6 @@
 const { User, Organization, Item } = require('../models');
 const { haversineKm } = require('../helpers/haversine');
-const geminiService = require('../services/geminiService');
+const aiService = require('../services/aiService');
 
 const MAX_CANDIDATES = 5;
 
@@ -120,7 +120,7 @@ async function chat(req, res, next) {
 
     let reply;
     try {
-      reply = await geminiService.generateReply({
+      reply = await aiService.generateReply({
         message: body.message.trim(),
         candidates: candidates.map((candidate) => candidate.context),
       });

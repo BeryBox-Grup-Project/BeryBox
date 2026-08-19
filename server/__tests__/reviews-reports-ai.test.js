@@ -1,8 +1,10 @@
 jest.mock('../services/geminiService', () => ({ generateReply: jest.fn() }));
+jest.mock('../services/groqService', () => ({ generateReply: jest.fn() }));
 
 const request = require('supertest');
 const app = require('../app');
 const geminiService = require('../services/geminiService');
+const groqService = require('../services/groqService');
 const { db, cleanDb, createUser, createItem, authorization } = require('./utils');
 
 describe('reviews, reports, and AI chat', () => {
@@ -107,7 +109,7 @@ describe('reviews, reports, and AI chat', () => {
   });
 
   test('AI uses only approved/public available located candidates, sorted and capped', async () => {
-    geminiService.generateReply.mockResolvedValue('Coba kandidat terdekat berikut.');
+    geminiService.generateReply.mockResolvedValue('Coba kandidat 999 yang terdekat berikut.');
     await db.Organization.create({
       userId: bob.id, name: 'Near Org', type: 'community',
       description: 'Organisasi sosial yang aktif membantu warga.', verified: 'approved',
@@ -129,7 +131,7 @@ describe('reviews, reports, and AI chat', () => {
     const response = await request(app).post('/ai/chat').set(authorization(alice))
       .send({ message: '  apa yang dekat?  ' });
     expect(response.status).toBe(200);
-    expect(response.body.reply).toBe('Coba kandidat terdekat berikut.');
+    expect(response.body.reply).toBe('Coba kandidat 999 yang terdekat berikut.');
     expect(response.body.suggestions).toHaveLength(5);
     expect(response.body.suggestions[0]).toMatchObject({ kind: 'organization', name: 'Near Org' });
     expect(response.body.suggestions.every((entry) => !Object.hasOwn(entry, 'addressLabel'))).toBe(true);
@@ -138,23 +140,55 @@ describe('reviews, reports, and AI chat', () => {
     expect(call.candidates).toHaveLength(5);
     expect(call.candidates[0]).toEqual(expect.objectContaining({ addressLabel: 'Dekat' }));
     expect(call.candidates.every((entry) => !Object.hasOwn(entry, 'latitude'))).toBe(true);
+    expect(response.body.suggestions.some((entry) => entry.id === 999)).toBe(false);
+    expect(groqService.generateReply).not.toHaveBeenCalled();
   });
 
   test.each([{}, [], { message: '' }, { message: 10 }, { message: 'ok', extra: true }])(
     'validates AI payload %#', async (body) => {
       expect((await request(app).post('/ai/chat').set(authorization(alice)).send(body)).status)
         .toBe(400);
+      expect(geminiService.generateReply).not.toHaveBeenCalled();
+      expect(groqService.generateReply).not.toHaveBeenCalled();
     },
   );
 
-  test('AI returns empty suggestions and maps provider errors to 502', async () => {
+  test('AI returns empty suggestions without calling fallback after Gemini succeeds', async () => {
     geminiService.generateReply.mockResolvedValueOnce('Belum ada kandidat.');
     const empty = await request(app).post('/ai/chat').set(authorization(alice))
       .send({ message: 'Bantu saya' });
     expect(empty.status).toBe(200);
     expect(empty.body.suggestions).toEqual([]);
+    expect(groqService.generateReply).not.toHaveBeenCalled();
+  });
+
+  test('falls back to Groq after Gemini fails and keeps suggestions DB-backed', async () => {
+    const item = await createItem(bob.id, { latitude: 0, longitude: 0.01 });
     geminiService.generateReply.mockRejectedValueOnce(new Error('network'));
-    expect((await request(app).post('/ai/chat').set(authorization(alice))
-      .send({ message: 'Bantu saya' })).status).toBe(502);
+    groqService.generateReply.mockResolvedValueOnce('Gunakan item 999, bukan data lain.');
+    const response = await request(app).post('/ai/chat').set(authorization(alice))
+      .send({ message: 'Bantu saya' });
+    expect(response.status).toBe(200);
+    expect(response.body.reply).toBe('Gunakan item 999, bukan data lain.');
+    expect(response.body.suggestions).toEqual([
+      expect.objectContaining({ kind: 'item', id: item.id }),
+    ]);
+    expect(response.body.suggestions.some((entry) => entry.id === 999)).toBe(false);
+    expect(geminiService.generateReply).toHaveBeenCalledTimes(1);
+    expect(groqService.generateReply).toHaveBeenCalledTimes(1);
+    expect(groqService.generateReply).toHaveBeenCalledWith(
+      geminiService.generateReply.mock.calls[0][0],
+    );
+  });
+
+  test('returns the stable 502 contract only when Gemini and Groq both fail', async () => {
+    geminiService.generateReply.mockRejectedValueOnce(new Error('Gemini unavailable'));
+    groqService.generateReply.mockRejectedValueOnce(new Error('Groq unavailable'));
+    const response = await request(app).post('/ai/chat').set(authorization(alice))
+      .send({ message: 'Bantu saya' });
+    expect(response.status).toBe(502);
+    expect(response.body).toEqual({ message: 'AI service unavailable' });
+    expect(geminiService.generateReply).toHaveBeenCalledTimes(1);
+    expect(groqService.generateReply).toHaveBeenCalledTimes(1);
   });
 });

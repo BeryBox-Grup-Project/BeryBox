@@ -11,6 +11,7 @@ const AdminController = require('../controllers/adminController');
 const ReviewController = require('../controllers/reviewController');
 const ReportController = require('../controllers/reportController');
 const AiController = require('../controllers/aiController');
+const UserController = require('../controllers/userController');
 const authentication = require('../middlewares/authentication');
 const {
   itemOwnerAuthorization,
@@ -49,6 +50,7 @@ const messageRateLimiter = rateLimit({
 router.post('/register', AuthController.register);
 router.post('/login', loginRateLimiter, AuthController.login);
 router.get('/me', authentication, AuthController.me);
+router.get('/users/:id', authentication, UserController.detail);
 router.get('/images/auth', authentication, ImageController.authenticationParameters);
 
 router.get('/items', authentication, ItemController.list);

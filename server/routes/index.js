@@ -10,6 +10,7 @@ const OrganizationController = require('../controllers/organizationController');
 const AdminController = require('../controllers/adminController');
 const ReviewController = require('../controllers/reviewController');
 const ReportController = require('../controllers/reportController');
+const AiController = require('../controllers/aiController');
 const authentication = require('../middlewares/authentication');
 const {
   itemOwnerAuthorization,
@@ -110,5 +111,6 @@ router.patch(
 
 router.post('/reviews', authentication, ReviewController.create);
 router.post('/reports', authentication, ReportController.create);
+router.post('/ai/chat', authentication, AiController.chat);
 
 module.exports = router;

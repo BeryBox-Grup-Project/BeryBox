@@ -11,12 +11,12 @@ describe('route rate limits', () => {
   test('login permits 10 attempts per IP then returns 429', async () => {
     for (let attempt = 0; attempt < 10; attempt += 1) {
       const response = await request(app).post('/login')
-        .set('X-Forwarded-For', '198.51.100.10')
         .send({ email: 'missing@test.local', password: 'Password123!' });
+
       expect(response.status).toBe(401);
     }
+
     const limited = await request(app).post('/login')
-      .set('X-Forwarded-For', '198.51.100.10')
       .send({ email: 'missing@test.local', password: 'Password123!' });
     expect(limited.status).toBe(429);
     expect(limited.body).toEqual({ message: 'Too many requests' });

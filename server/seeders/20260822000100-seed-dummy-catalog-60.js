@@ -156,6 +156,20 @@ module.exports = {
       `SELECT COUNT(*)::int AS count FROM "Organizations" WHERE description LIKE :mark`,
       { replacements: { mark: `%${SEED_MARK}%` }, type: QueryTypes.SELECT },
     );
+    const takenOrgUsers = await queryInterface.sequelize.query(
+      'SELECT "userId" FROM "Organizations" WHERE "userId" IS NOT NULL',
+      { type: QueryTypes.SELECT },
+    );
+    const takenUserIds = new Set(takenOrgUsers.map((row) => row.userId));
+    const orgCandidates = users
+      .filter((user) => user.role !== 'admin' && user.status !== 'banned' && !takenUserIds.has(user.id))
+      .sort((left, right) => Number(right.role === 'organization') - Number(left.role === 'organization'));
+    const userIdColumn = await queryInterface.sequelize.query(
+      `SELECT is_nullable FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'Organizations' AND column_name = 'userId'`,
+      { type: QueryTypes.SELECT },
+    );
+    const userIdNullable = userIdColumn[0]?.is_nullable === 'YES';
 
     const productCount = existingProducts[0]?.count || 0;
     const orgCount = existingOrgs[0]?.count || 0;
@@ -189,8 +203,10 @@ module.exports = {
 
     for (let index = orgCount; index < TARGET_ORGS; index += 1) {
       const place = BANDUNG[index % BANDUNG.length];
+      const owner = orgCandidates.shift() || null;
+      if (!owner && !userIdNullable) continue;
       organizations.push({
-        userId: null,
+        userId: owner ? owner.id : null,
         name: ORG_NAMES[index],
         type: index % 4 === 0 ? 'community' : 'orphanage',
         description: `${SEED_MARK} ${ORG_NAMES[index]} menerima donasi barang layak pakai di ${place[0]}.`,

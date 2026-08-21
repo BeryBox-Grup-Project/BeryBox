@@ -14,6 +14,11 @@ async function authentication(req, res, next) {
     const payload = verifyToken(parts[1]);
     const user = await User.findByPk(payload.id);
     if (!user) throw new Error('Invalid token');
+    if (user.status === 'banned') {
+      const error = new Error('Account banned');
+      error.status = 403;
+      return next(error);
+    }
 
     req.user = {
       id: user.id,

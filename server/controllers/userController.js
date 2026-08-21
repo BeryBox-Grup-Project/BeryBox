@@ -21,6 +21,7 @@ async function detail(req, res, next) {
       role: user.role,
       ratingAvg: user.ratingAvg,
       addressLabel: user.addressLabel,
+      photoUrl: user.photoUrl || null,
     });
   } catch (error) {
     return next(error);

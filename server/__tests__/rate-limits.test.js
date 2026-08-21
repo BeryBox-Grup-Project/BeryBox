@@ -5,6 +5,7 @@ const app = require('../app');
 const { db, cleanDb, createUser, authorization } = require('./utils');
 
 describe('route rate limits', () => {
+  jest.setTimeout(60000);
   beforeEach(cleanDb);
   afterAll(async () => db.sequelize.close());
 

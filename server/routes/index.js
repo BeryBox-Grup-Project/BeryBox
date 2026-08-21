@@ -12,6 +12,7 @@ const ReviewController = require('../controllers/reviewController');
 const ReportController = require('../controllers/reportController');
 const AiController = require('../controllers/aiController');
 const UserController = require('../controllers/userController');
+const NotificationController = require('../controllers/notificationController');
 const authentication = require('../middlewares/authentication');
 const {
   itemOwnerAuthorization,
@@ -49,7 +50,10 @@ const messageRateLimiter = rateLimit({
 
 router.post('/register', AuthController.register);
 router.post('/login', loginRateLimiter, AuthController.login);
+router.post('/google-login', loginRateLimiter, AuthController.googleLogin);
 router.get('/me', authentication, AuthController.me);
+router.patch('/me', authentication, AuthController.updateMe);
+router.get('/users/:id/reviews', authentication, ReviewController.listForUser);
 router.get('/users/:id', authentication, UserController.detail);
 router.get('/images/auth', authentication, ImageController.authenticationParameters);
 
@@ -58,13 +62,20 @@ router.get('/items/mine', authentication, ItemController.mine);
 router.get('/items/:id', authentication, ItemController.detail);
 router.post('/items', authentication, ItemController.create);
 router.patch('/items/:id', authentication, itemOwnerAuthorization, ItemController.update);
+router.post('/items/:id/complete', authentication, itemOwnerAuthorization, ItemController.complete);
 router.delete('/items/:id', authentication, itemOwnerAuthorization, ItemController.cancel);
 
 router.post('/requests', authentication, RequestController.create);
 router.get('/requests/incoming', authentication, RequestController.incoming);
 router.get('/requests/outgoing', authentication, RequestController.outgoing);
+router.get('/history', authentication, RequestController.history);
 router.patch('/requests/:id', authentication, RequestController.update);
+router.post('/requests/:id/shipping', authentication, RequestController.setShipping);
+router.post('/requests/:id/pay', authentication, RequestController.createPayment);
+router.post('/requests/:id/pay/confirm', authentication, RequestController.confirmPayment);
+router.patch('/requests/:id/tracking', authentication, RequestController.updateTracking);
 router.post('/requests/:id/redeem-credit', authentication, RequestController.redeemCredit);
+router.post('/midtrans/notification', RequestController.midtransNotification);
 
 router.post('/conversations', authentication, ConversationController.create);
 router.get('/conversations', authentication, ConversationController.inbox);
@@ -82,7 +93,14 @@ router.post(
   MessageController.create,
 );
 
+router.get('/places/photo', authentication, OrganizationController.photo);
 router.get('/organizations', authentication, OrganizationController.list);
+router.post(
+  '/organizations/claim',
+  authentication,
+  organizationAuthorization,
+  OrganizationController.claim,
+);
 router.get('/organizations/:id', authentication, OrganizationController.detail);
 router.post(
   '/organizations',
@@ -91,11 +109,21 @@ router.post(
   OrganizationController.create,
 );
 
+router.get('/notifications', authentication, NotificationController.list);
+router.patch('/notifications/read-all', authentication, NotificationController.markReadAll);
+router.patch('/notifications/:id/read', authentication, NotificationController.markRead);
+
 router.get(
   '/admin/organizations',
   authentication,
   adminAuthorization,
   AdminController.organizations,
+);
+router.post(
+  '/admin/organizations',
+  authentication,
+  adminAuthorization,
+  AdminController.createOrganization,
 );
 router.patch(
   '/admin/organizations/:id',
@@ -110,9 +138,25 @@ router.patch(
   adminAuthorization,
   AdminController.resolveReport,
 );
+router.get('/admin/stats', authentication, adminAuthorization, AdminController.stats);
+router.post('/admin/users/:id/warn', authentication, adminAuthorization, AdminController.warnUser);
+router.post('/admin/users/:id/ban', authentication, adminAuthorization, AdminController.banUser);
+router.delete(
+  '/admin/items/:id',
+  authentication,
+  adminAuthorization,
+  AdminController.removeItem,
+);
+router.post(
+  '/admin/ai/organization',
+  authentication,
+  adminAuthorization,
+  AdminController.researchOrganization,
+);
 
 router.post('/reviews', authentication, ReviewController.create);
 router.post('/reports', authentication, ReportController.create);
 router.post('/ai/chat', authentication, AiController.chat);
+router.post('/ai/match', authentication, AiController.match);
 
 module.exports = router;

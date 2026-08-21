@@ -107,12 +107,28 @@ describe('authentication and public user API', () => {
     expect((await request(app).get('/me').set('Authorization', `Bearer ${token}`)).status).toBe(401);
   });
 
+  test('blocks banned accounts on login and authenticated routes', async () => {
+    const banned = await createUser({ email: 'banned@test.local', status: 'banned' });
+    expect((await request(app).post('/login').send({
+      email: 'banned@test.local', password: 'Password123!',
+    })).body).toEqual({ message: 'Account banned' });
+    expect((await request(app).get('/me').set(authorization(banned))).body)
+      .toEqual({ message: 'Account banned' });
+  });
+
   test('returns safe public user profile and not found cases', async () => {
     const viewer = await createUser();
     const target = await createUser({ ratingAvg: 4.5 });
     const response = await request(app).get(`/users/${target.id}`).set(authorization(viewer));
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({ id: target.id, username: target.username, role: target.role, ratingAvg: 4.5, addressLabel: 'Bandung' });
+    expect(response.body).toEqual({
+      id: target.id,
+      username: target.username,
+      role: target.role,
+      ratingAvg: 4.5,
+      addressLabel: 'Bandung',
+      photoUrl: null,
+    });
     expect(JSON.stringify(response.body)).not.toContain('email');
     expect((await request(app).get('/users/bad').set(authorization(viewer))).status).toBe(404);
     expect((await request(app).get('/users/999999').set(authorization(viewer))).status).toBe(404);

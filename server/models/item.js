@@ -20,7 +20,7 @@ module.exports = (sequelize, DataTypes) => {
     description: {
       type: DataTypes.TEXT,
       allowNull: false,
-      validate: { len: [20] },
+      validate: { len: [1] },
     },
     condition: {
       type: DataTypes.STRING,
@@ -42,6 +42,14 @@ module.exports = (sequelize, DataTypes) => {
     longitude: DataTypes.FLOAT,
     addressLabel: DataTypes.STRING,
     imageUrl: DataTypes.STRING,
+    wantedTitle: DataTypes.STRING,
+    wantedDescription: DataTypes.TEXT,
+    wantedImageUrl: DataTypes.STRING,
+    wantedCategory: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      validate: { isIn: [['clothes', 'books', 'electronics', 'furniture', 'toys', 'kitchen', 'other']] },
+    },
     status: {
       type: DataTypes.STRING,
       allowNull: false,

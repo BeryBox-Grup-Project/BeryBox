@@ -27,15 +27,15 @@ describe('pure helpers', () => {
     expect(typeof distance).toBe('number');
     expect(Number(distance.toFixed(1))).toBeGreaterThan(0);
     expect(NEARBY_KM).toBe(10);
-    expect(suggestShipping(9.9)).toEqual(['pickup', 'gosend']);
-    expect(suggestShipping(10)).toEqual(['jne', 'jnt']);
+    expect(suggestShipping(9.9)).toEqual(['pickup', 'courier_agent']);
+    expect(suggestShipping(10)).toEqual(['courier_agent']);
     expect(Number.isFinite(haversineKm(0, 0, 0, 180))).toBe(true);
   });
 
   test.each([
     ['bad', 'books', 'Deskripsi barang ini cukup panjang'],
     ['good', 'bad', 'Deskripsi barang ini cukup panjang'],
-    ['good', 'books', 'pendek'],
+    ['good', 'books', ''],
     ...['obat', 'medicine', 'senjata', 'weapon', 'expired', 'kadaluarsa', 'narkoba', 'underwear', 'pakaian dalam']
       .map((word) => ['good', 'other', `Deskripsi mengandung ${word} yang dilarang`]),
   ])('eligibility rejects invalid or banned content', (condition, category, description) => {
@@ -72,7 +72,10 @@ describe('pure helpers', () => {
     expect(isImageKitUrl('https://example.com/a.jpg')).toBe(false);
     expect(isImageKitUrl(null)).toBe(false);
     expect(isImageKitUrl(undefined)).toBe(false);
-    const auth = getImageKit().getAuthenticationParameters('token', 1710000000);
+    const first = getImageKit();
+    const second = getImageKit();
+    expect(first).toBe(second);
+    const auth = first.getAuthenticationParameters('token', 1710000000);
     expect(auth).toEqual(expect.objectContaining({ token: 'token', expire: 1710000000 }));
   });
 });

@@ -1,0 +1,23 @@
+# secrets & local env
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# deps & build
+node_modules
+dist
+coverage
+*.log
+npm-debug.log*
+
+# local tooling
+.DS_Store
+.cursor
+.vercel
+.stitch
+*.local
+
+# OS / editor
+Thumbs.db
+.idea

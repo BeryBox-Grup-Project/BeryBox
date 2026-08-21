@@ -4,13 +4,13 @@ const { SYSTEM_INSTRUCTION, buildPrompt } = require('./aiInstructions');
 const REQUEST_TIMEOUT_MS = 10000;
 
 async function generateReply({ message, candidates }) {
-  if (!process.env.GEMINI_API_KEY || !process.env.GEMINI_MODEL) {
+  if (!process.env.GEMINI_API_KEY) {
     throw new Error('Gemini is not configured');
   }
 
   const client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   const model = client.getGenerativeModel({
-    model: process.env.GEMINI_MODEL,
+    model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
     systemInstruction: SYSTEM_INSTRUCTION,
   }, { timeout: REQUEST_TIMEOUT_MS });
   const prompt = buildPrompt({ message, candidates });

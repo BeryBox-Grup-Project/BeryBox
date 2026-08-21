@@ -99,7 +99,7 @@ describe('conversations and REST messages', () => {
     expect(response.status).toBe(201);
     expect(response.body).toMatchObject({ senderId: alice.id, body: 'hello' });
     expect(socket.emitMessageEvents).toHaveBeenCalledWith(expect.objectContaining({
-      senderUsername: alice.username,
+      conversation: expect.objectContaining({ id: conversation.id }),
       message: expect.objectContaining({ senderId: alice.id }),
     }));
   });

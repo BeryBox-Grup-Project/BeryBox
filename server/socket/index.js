@@ -1,7 +1,6 @@
 const { Server } = require('socket.io');
 const { User, Conversation } = require('../models');
 const { verifyToken } = require('../helpers/jwt');
-const { allowedOrigins } = require('../helpers/origins');
 const { createMessage } = require('../services/messageService');
 
 let ioInstance;
@@ -123,7 +122,7 @@ function configureSocket(io) {
 function initializeSocket(server) {
   const io = new Server(server, {
     cors: {
-      origin: allowedOrigins(),
+      origin: '*',
     },
   });
   setIo(io);

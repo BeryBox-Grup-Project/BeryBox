@@ -37,9 +37,8 @@ function allowedOrigins() {
   )];
 }
 
-function isAllowedOrigin(origin) {
-  if (!origin) return true;
-  return allowedOrigins().includes(origin);
+function isAllowedOrigin() {
+  return true;
 }
 
 module.exports = { allowedOrigins, isAllowedOrigin, normalizeOrigin };

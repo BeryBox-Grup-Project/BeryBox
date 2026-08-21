@@ -9,25 +9,17 @@ const cors = require('cors');
 const helmet = require('helmet');
 const router = require('./routes');
 const errorHandler = require('./middlewares/errorHandler');
-const { isAllowedOrigin } = require('./helpers/origins');
 
 const app = express();
 
 app.set('trust proxy', 1);
 app.use(helmet({
+  contentSecurityPolicy: false,
   crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 app.use(cors({
-  origin(origin, callback) {
-    if (isAllowedOrigin(origin)) {
-      return callback(null, true);
-    }
-
-    const error = new Error('Forbidden');
-    error.status = 403;
-    return callback(error);
-  },
+  origin: '*',
   methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));

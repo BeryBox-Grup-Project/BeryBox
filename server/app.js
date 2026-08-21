@@ -1,5 +1,8 @@
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '.env'), quiet: true });
+
+if(process.env.NODE_ENV !== 'production') {  
+  require('dotenv').config({ path: path.join(__dirname, '.env'), quiet: true });
+}
 
 const express = require('express');
 const cors = require('cors');

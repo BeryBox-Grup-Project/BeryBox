@@ -3,10 +3,16 @@
 const { Model } = require('sequelize');
 
 module.exports = (sequelize, DataTypes) => {
-  class Report extends Model {}
+  class Report extends Model {
+    static associate(models) {
+      Report.belongsTo(models.User, { as: 'reporter', foreignKey: 'reporterId' });
+      Report.belongsTo(models.Request, { foreignKey: 'requestId' });
+    }
+  }
 
   Report.init({
     reporterId: { type: DataTypes.INTEGER, allowNull: false },
+    requestId: { type: DataTypes.INTEGER, allowNull: true },
     targetType: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -16,7 +22,7 @@ module.exports = (sequelize, DataTypes) => {
     reason: {
       type: DataTypes.TEXT,
       allowNull: false,
-      validate: { len: [10] },
+      validate: { len: [1] },
     },
     status: {
       type: DataTypes.STRING,

@@ -1,6 +1,7 @@
 const { Message } = require('../models');
 const { createMessage, messageResponse } = require('../services/messageService');
 const { emitMessageEvents } = require('../socket');
+const { notify } = require('../services/notificationService');
 
 async function history(req, res, next) {
   try {
@@ -22,8 +23,17 @@ async function create(req, res, next) {
       body: req.body?.body,
     });
     emitMessageEvents({
-      ...result,
-      senderUsername: req.authUser.username,
+      conversation: result.conversation,
+      message: result.message,
+    });
+    const receiverId = result.message.senderId === result.conversation.userAId
+      ? result.conversation.userBId
+      : result.conversation.userAId;
+    await notify(receiverId, {
+      type: 'message',
+      requestId: null,
+      conversationId: result.conversation.id,
+      message: `${req.authUser.username} sent you a message`,
     });
     return res.status(201).json(result.message);
   } catch (error) {

@@ -56,3 +56,16 @@ describe('centralized error handler', () => {
     expect(next).toHaveBeenCalled();
   });
 });
+
+describe('CORS origins', () => {
+  const app = require('../app');
+  const request = require('supertest');
+
+  test('allows configured origin and rejects unknown origin', async () => {
+    const allowed = await request(app).options('/login').set('Origin', 'http://localhost:5173')
+      .set('Access-Control-Request-Method', 'POST');
+    expect(allowed.headers['access-control-allow-origin']).toBe('http://localhost:5173');
+    const denied = await request(app).get('/me').set('Origin', 'http://evil.test');
+    expect(denied.status).toBe(403);
+  });
+});

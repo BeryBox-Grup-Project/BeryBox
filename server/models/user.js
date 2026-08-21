@@ -11,6 +11,7 @@ module.exports = (sequelize, DataTypes) => {
       User.hasMany(models.Request, { as: 'outgoingRequests', foreignKey: 'fromUserId' });
       User.hasMany(models.Request, { as: 'incomingRequests', foreignKey: 'toUserId' });
       User.hasMany(models.Conversation, { foreignKey: 'userAId' });
+      User.hasMany(models.Notification, { foreignKey: 'userId' });
     }
   }
 
@@ -51,6 +52,19 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 0,
     },
+    status: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: 'active',
+      validate: { isIn: [['active', 'warned', 'banned']] },
+    },
+    warningCount: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+      validate: { min: 0 },
+    },
+    photoUrl: { type: DataTypes.STRING, allowNull: true },
   }, {
     sequelize,
     modelName: 'User',

@@ -18,7 +18,7 @@ function isItemEligible({ condition, category, description }) {
   const eligible = CONDITIONS.includes(condition)
     && CATEGORIES.includes(category)
     && typeof description === 'string'
-    && description.length >= 20
+    && description.trim().length >= 1
     && !BANNED_KEYWORDS.some((keyword) => normalizedDescription.includes(keyword));
 
   return {

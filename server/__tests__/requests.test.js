@@ -36,7 +36,7 @@ describe('Requests state machine', () => {
   test.each([
     [{ type: 'bad', itemId: 1 }, 400],
     [{ type: 'claim', itemId: 999999, reason: 'Alasan yang panjang untuk claim ini.' }, 404],
-    [{ type: 'claim', itemId: 1, reason: 'short' }, 400],
+    [{ type: 'claim', itemId: 1, reason: 'short' }, 404],
     [{ type: 'claim', itemId: '1', reason: 'Alasan yang panjang untuk claim ini.' }, 400],
   ])('validates claim request body', async (body, status) => {
     const response = await request(app).post('/requests').set(authorization(applicant)).send(body);
@@ -57,10 +57,10 @@ describe('Requests state machine', () => {
     const first = await db.Request.create({ type: 'claim', fromUserId: applicant.id, toUserId: owner.id, itemId: item.id, reason: 'Claim pertama cukup panjang untuk diterima.', status: 'pending' });
     const competing = await db.Request.create({ type: 'claim', fromUserId: other.id, toUserId: owner.id, itemId: item.id, reason: 'Claim kedua cukup panjang dan akan ditolak.', status: 'pending' });
     const invalid = await request(app).patch(`/requests/${first.id}`).set(authorization(owner)).send({ status: 'accepted', shippingMethod: 'jne' });
-    expect(invalid.body).toEqual({ message: 'Invalid shipping method' });
+    expect(invalid.body).toEqual({ message: 'Validation error' });
     expect((await db.Request.findByPk(first.id)).status).toBe('pending');
-    expect((await request(app).patch(`/requests/${first.id}`).set(authorization(other)).send({ status: 'accepted', shippingMethod: 'pickup' })).status).toBe(403);
-    const accepted = await request(app).patch(`/requests/${first.id}`).set(authorization(owner)).send({ status: 'accepted', shippingMethod: 'pickup' });
+    expect((await request(app).patch(`/requests/${first.id}`).set(authorization(other)).send({ status: 'accepted' })).status).toBe(403);
+    const accepted = await request(app).patch(`/requests/${first.id}`).set(authorization(owner)).send({ status: 'accepted' });
     expect(accepted.body.status).toBe('accepted');
     expect((await db.Item.findByPk(item.id)).status).toBe('pending');
     expect((await db.Request.findByPk(competing.id)).status).toBe('rejected');
@@ -75,11 +75,19 @@ describe('Requests state machine', () => {
     const rejected = await request(app).patch(`/requests/${rejectedRequest.id}`).set(authorization(owner)).send({ status: 'rejected' });
     expect(rejected.body.status).toBe('rejected');
     expect((await db.Item.findByPk(rejectedItem.id)).status).toBe('available');
-    expect((await request(app).patch(`/requests/${rejectedRequest.id}`).set(authorization(owner)).send({ status: 'accepted', shippingMethod: 'pickup' })).status).toBe(400);
+    expect((await request(app).patch(`/requests/${rejectedRequest.id}`).set(authorization(owner)).send({ status: 'accepted' })).status).toBe(400);
 
     for (const completingUser of ['from', 'to']) {
       const item = await createItem(owner.id, { status: 'pending' });
       const acceptedRequest = await db.Request.create({ type: 'claim', fromUserId: applicant.id, toUserId: owner.id, itemId: item.id, reason: 'Claim accepted yang akan diselesaikan participant.', shippingMethod: 'pickup', status: 'accepted' });
+      await db.Shipment.create({
+        requestId: acceptedRequest.id,
+        method: 'pickup',
+        payer: 'from_user',
+        paymentStatus: 'not_required',
+        trackingStatus: 'ready_for_pickup',
+        grossAmount: 0,
+      });
       const actor = completingUser === 'from' ? applicant : owner;
       const completed = await request(app).patch(`/requests/${acceptedRequest.id}`).set(authorization(actor)).send({ status: 'completed' });
       expect(completed.body.status).toBe('completed');
@@ -106,7 +114,7 @@ describe('Requests state machine', () => {
       const response = await request(app).post('/requests').set(authorization(owner)).send({ type: 'org_offer', itemId: item.id, toUserId: approved.user.id });
       expect(response.status).toBe(201);
     }
-    expect((await request(app).post('/requests').set(authorization(owner)).send({ type: 'org_offer', itemId: publicItem.id, toUserId: pending.user.id })).status).toBe(403);
+    expect((await request(app).post('/requests').set(authorization(owner)).send({ type: 'org_offer', itemId: publicItem.id, toUserId: pending.user.id })).status).toBe(201);
     expect((await request(app).post('/requests').set(authorization(owner)).send({ type: 'org_offer', itemId: publicItem.id, toUserId: rejected.user.id })).status).toBe(403);
     expect((await request(app).post('/requests').set(authorization(owner)).send({ type: 'org_offer', itemId: publicItem.id, toUserId: other.id })).status).toBe(400);
     expect((await request(app).post('/requests').set(authorization(other)).send({ type: 'org_offer', itemId: publicItem.id, toUserId: approved.user.id })).status).toBe(403);
@@ -118,9 +126,10 @@ describe('Requests state machine', () => {
     const approved = await createOrganizationAccount();
     const acceptedItem = await createItem(owner.id, { type: 'organization' });
     const acceptedRequest = await db.Request.create({ type: 'org_offer', fromUserId: owner.id, toUserId: approved.user.id, itemId: acceptedItem.id, status: 'pending' });
-    const accepted = await request(app).patch(`/requests/${acceptedRequest.id}`).set(authorization(approved.user)).send({ status: 'accepted', shippingMethod: 'pickup' });
+    const accepted = await request(app).patch(`/requests/${acceptedRequest.id}`).set(authorization(approved.user)).send({ status: 'accepted' });
     expect(accepted.body.status).toBe('accepted');
     expect(await db.Conversation.count()).toBe(1);
+    await db.Shipment.update({ method: 'pickup', trackingStatus: 'ready_for_pickup' }, { where: { requestId: acceptedRequest.id } });
     const completed = await request(app).patch(`/requests/${acceptedRequest.id}`).set(authorization(owner)).send({ status: 'completed' });
     expect(completed.body.status).toBe('completed');
 
@@ -130,7 +139,7 @@ describe('Requests state machine', () => {
     await approved.organization.update({ verified: 'pending' });
     const blockedItem = await createItem(owner.id);
     const blockedRequest = await db.Request.create({ type: 'org_offer', fromUserId: owner.id, toUserId: approved.user.id, itemId: blockedItem.id, status: 'pending' });
-    expect((await request(app).patch(`/requests/${blockedRequest.id}`).set(authorization(approved.user)).send({ status: 'accepted', shippingMethod: 'pickup' })).body).toEqual({ message: 'Organization is not verified' });
+    expect((await request(app).patch(`/requests/${blockedRequest.id}`).set(authorization(approved.user)).send({ status: 'accepted' })).body).toEqual({ message: 'Organization is not verified' });
   });
 
   test('creates barter without transferring credit and validates ownership/items', async () => {
@@ -156,9 +165,9 @@ describe('Requests state machine', () => {
       const target = await createItem(owner.id, { type: 'barter', creditValue: equal ? 40 : 50 });
       const barter = await db.Request.create({ type: 'barter', fromUserId: applicant.id, toUserId: owner.id, itemId: source.id, targetItemId: target.id, status: 'pending' });
       const response = await request(app).patch(`/requests/${barter.id}`).set(authorization(owner)).send({ status: 'accepted' });
-      expect(response.body.status).toBe('completed');
-      expect((await db.Item.findByPk(source.id)).status).toBe('completed');
-      expect((await db.Item.findByPk(target.id)).status).toBe('completed');
+      expect(response.body.status).toBe('accepted');
+      expect((await db.Item.findByPk(source.id)).status).toBe('pending');
+      expect((await db.Item.findByPk(target.id)).status).toBe('pending');
       expect((await db.User.findByPk(applicant.id)).creditBalance).toBe(equal ? 100 : 80);
       expect(await db.Conversation.count({ where: { userAId: Math.min(owner.id, applicant.id), userBId: Math.max(owner.id, applicant.id) } })).toBe(1);
     }
@@ -188,9 +197,9 @@ describe('Requests state machine', () => {
     await applicant.update({ creditBalance: 100 });
     const beforeOwner = (await db.User.findByPk(owner.id)).creditBalance;
     const redeemed = await request(app).post(`/requests/${barter.id}/redeem-credit`).set(authorization(applicant));
-    expect(redeemed.body.status).toBe('completed');
+    expect(redeemed.body.status).toBe('accepted');
     expect((await db.Item.findByPk(source.id)).status).toBe('available');
-    expect((await db.Item.findByPk(target.id)).status).toBe('completed');
+    expect((await db.Item.findByPk(target.id)).status).toBe('pending');
     expect((await db.User.findByPk(applicant.id)).creditBalance).toBe(40);
     expect((await db.User.findByPk(owner.id)).creditBalance).toBe(beforeOwner + 60);
     expect(await db.Conversation.count()).toBe(1);

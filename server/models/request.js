@@ -10,6 +10,7 @@ module.exports = (sequelize, DataTypes) => {
       Request.belongsTo(models.Item, { foreignKey: 'itemId' });
       Request.belongsTo(models.Item, { as: 'targetItem', foreignKey: 'targetItemId' });
       Request.hasMany(models.Review, { foreignKey: 'requestId' });
+      Request.hasOne(models.Shipment, { foreignKey: 'requestId' });
     }
   }
 
@@ -17,7 +18,7 @@ module.exports = (sequelize, DataTypes) => {
     type: {
       type: DataTypes.STRING,
       allowNull: false,
-      validate: { isIn: [['claim', 'org_offer', 'barter']] },
+      validate: { isIn: [['claim', 'org_offer', 'barter', 'credit']] },
     },
     fromUserId: { type: DataTypes.INTEGER, allowNull: false },
     toUserId: { type: DataTypes.INTEGER, allowNull: false },
@@ -27,7 +28,7 @@ module.exports = (sequelize, DataTypes) => {
     shippingMethod: {
       type: DataTypes.STRING,
       allowNull: true,
-      validate: { isIn: [['pickup', 'gosend', 'jne', 'jnt']] },
+      validate: { isIn: [['pickup', 'courier_agent']] },
     },
     status: {
       type: DataTypes.STRING,

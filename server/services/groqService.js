@@ -4,7 +4,7 @@ const { SYSTEM_INSTRUCTION, buildPrompt } = require('./aiInstructions');
 const REQUEST_TIMEOUT_MS = 10000;
 
 async function generateReply(context) {
-  if (!process.env.GROQ_API_KEY || !process.env.GROQ_MODEL) {
+  if (!process.env.GROQ_API_KEY) {
     throw new Error('Groq is not configured');
   }
 
@@ -14,7 +14,7 @@ async function generateReply(context) {
     maxRetries: 0,
   });
   const completion = await client.chat.completions.create({
-    model: process.env.GROQ_MODEL,
+    model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
     messages: [
       { role: 'system', content: SYSTEM_INSTRUCTION },
       { role: 'user', content: buildPrompt(context) },

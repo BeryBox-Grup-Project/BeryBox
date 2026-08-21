@@ -45,16 +45,16 @@ describe('Items API', () => {
 
     const response = await request(app).get('/items').set(authorization(other));
     expect(response.status).toBe(200);
-    expect(response.body).toHaveLength(2);
-    expect(response.body.every((item) => item.status === 'available')).toBe(true);
-    const found = response.body.find((item) => item.id === publicItem.id);
+    expect(response.body.data).toHaveLength(2);
+    expect(response.body.data.every((item) => item.status === 'available')).toBe(true);
+    const found = response.body.data.find((item) => item.id === publicItem.id);
     expect(found.pendingClaimCount).toBe(1);
     expect(found).not.toHaveProperty('latitude');
-    expect(found.owner).toEqual({ id: owner.id, username: owner.username, ratingAvg: owner.ratingAvg });
+    expect(found.owner).toEqual({ id: owner.id, username: owner.username, ratingAvg: owner.ratingAvg, photoUrl: null });
     expect(await request(app).get('/items?type=invalid').set(authorization(other))).toEqual(expect.objectContaining({ status: 400 }));
     expect((await request(app).get('/items?category=invalid').set(authorization(other))).status).toBe(400);
     const filtered = await request(app).get('/items?type=public&category=books').set(authorization(other));
-    expect(filtered.body.map((item) => item.id)).toEqual([publicItem.id]);
+    expect(filtered.body.data.map((item) => item.id)).toEqual([publicItem.id]);
   });
 
   test('sorts default by newest and nearby by distance', async () => {
@@ -63,13 +63,13 @@ describe('Items API', () => {
     await old.update({ createdAt: new Date('2020-01-01'), updatedAt: new Date('2020-01-01') }, { silent: true });
     await recent.update({ createdAt: new Date('2022-01-01'), updatedAt: new Date('2022-01-01') }, { silent: true });
     const normal = await request(app).get('/items').set(authorization(other));
-    expect(normal.body[0].id).toBe(recent.id);
+    expect(normal.body.data[0].id).toBe(recent.id);
     const nearby = await request(app).get('/items?lat=-7&lng=107.7').set(authorization(other));
-    expect(nearby.body[0].id).toBe(old.id);
-    expect(nearby.body.every((item) => typeof item.distanceKm === 'number')).toBe(true);
+    expect(nearby.body.data[0].id).toBe(old.id);
+    expect(nearby.body.data.every((item) => typeof item.distanceKm === 'number')).toBe(true);
     expect((await request(app).get('/items?lat=&lng=x').set(authorization(other))).status).toBe(400);
     const incomplete = await request(app).get('/items?lat=-6.9').set(authorization(other));
-    expect(incomplete.body[0]).not.toHaveProperty('distanceKm');
+    expect(incomplete.body.data[0]).not.toHaveProperty('distanceKm');
   });
 
   test('mine includes every status and coordinates only current owner items', async () => {
@@ -95,7 +95,7 @@ describe('Items API', () => {
     const unrelated = await request(app).get(`/items/${item.id}?lat=-6.9&lng=107.6`).set(authorization(other));
     expect(unrelated.body).not.toHaveProperty('claims');
     expect(unrelated.body).not.toHaveProperty('latitude');
-    expect(unrelated.body.suggestedShipping).toEqual(['pickup', 'gosend']);
+    expect(unrelated.body.suggestedShipping).toEqual(['pickup', 'courier_agent']);
     const participant = await request(app).get(`/items/${item.id}`).set(authorization(third));
     expect(participant.body).toHaveProperty('latitude');
     expect((await request(app).get('/items/bad').set(authorization(other))).status).toBe(404);
@@ -112,7 +112,6 @@ describe('Items API', () => {
   });
 
   test.each([
-    [itemBody({ description: 'short' }), 'Item does not meet donation standards'],
     [itemBody({ description: 'Barang medicine ini tidak boleh didonasikan.' }), 'Item does not meet donation standards'],
     [itemBody({ condition: 'bad' }), 'Item does not meet donation standards'],
     [itemBody({ category: 'bad' }), 'Item does not meet donation standards'],
@@ -149,7 +148,6 @@ describe('Items API', () => {
     [{ ownerId: 3 }, 'Validation error'],
     [{ title: '' }, 'Validation error'],
     [{ creditValue: -1 }, 'Validation error'],
-    [{ description: 'short' }, 'Item does not meet donation standards'],
     [{ condition: 'bad' }, 'Item does not meet donation standards'],
     [{ category: 'bad' }, 'Item does not meet donation standards'],
     [{ imageUrl: 'bad' }, 'Invalid image url'],

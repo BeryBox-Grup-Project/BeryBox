@@ -9,6 +9,7 @@ export const authApi = {
   user: (id) => http.get(`/users/${id}`).then((r) => r.data),
   userReviews: (id) => http.get(`/users/${id}/reviews`).then((r) => r.data),
   imageAuth: () => http.get('/images/auth').then((r) => r.data),
+  imageUpload: (body) => http.post('/images/upload', body).then((r) => r.data),
 };
 
 export const itemsApi = {

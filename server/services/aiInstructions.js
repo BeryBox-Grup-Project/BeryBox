@@ -119,8 +119,12 @@ function rankBarterCandidates(have, want, candidates, limit = 5) {
         haveHits,
         distance: Number(entry.suggestion?.distanceKm ?? row.distanceKm ?? 9999),
       };
-    })
-    .filter((row) => !specific || row.score > 0)
+    });
+
+  const matched = ranked.filter((row) => row.score > 0);
+  const pool = specific && matched.length ? matched : ranked;
+
+  return pool
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
       if (b.wantHits !== a.wantHits) return b.wantHits - a.wantHits;
@@ -128,8 +132,6 @@ function rankBarterCandidates(have, want, candidates, limit = 5) {
     })
     .slice(0, limit)
     .map((row) => row.entry);
-
-  return ranked;
 }
 
 function wantsNearby(message) {

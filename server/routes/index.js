@@ -56,6 +56,7 @@ router.patch('/me', authentication, AuthController.updateMe);
 router.get('/users/:id/reviews', authentication, ReviewController.listForUser);
 router.get('/users/:id', authentication, UserController.detail);
 router.get('/images/auth', authentication, ImageController.authenticationParameters);
+router.post('/images/upload', authentication, ImageController.upload);
 
 router.get('/items', authentication, ItemController.list);
 router.get('/items/mine', authentication, ItemController.mine);

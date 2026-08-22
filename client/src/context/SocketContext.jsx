@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useDispatch, useSelector } from 'react-redux';
+import { API_URL } from '../lib/config';
 import { isModeratorNotice, pushNotification } from '../store/notificationsSlice';
 import { useUi } from './UiContext';
 
@@ -21,7 +22,7 @@ export function SocketProvider({ children }) {
       return undefined;
     }
 
-    const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:3000', {
+    const socket = io(API_URL, {
       auth: { token },
       transports: ['websocket', 'polling'],
     });

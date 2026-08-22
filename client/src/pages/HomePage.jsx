@@ -14,6 +14,7 @@ import { CATEGORY_LABELS, ITEM_CATEGORIES } from '../lib/labels';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { useLiveReload } from '../hooks/useLiveReload';
 import { useUi } from '../context/UiContext';
+import { PawMark } from '../components/PawMark';
 
 const TYPE_FILTERS = [
   { value: '', label: 'Semua' },
@@ -85,7 +86,12 @@ export default function HomePage() {
   );
 
   return (
-    <div>
+    <div className="relative">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[min(100%,40rem)] overflow-hidden" aria-hidden="true">
+        <PawMark className="absolute -right-10 top-6 h-56 w-56 rotate-12 text-primary/[0.07] md:h-72 md:w-72" />
+        <PawMark className="absolute -left-8 bottom-0 h-40 w-40 -rotate-[18deg] text-primary/[0.05] md:h-52 md:w-52" />
+      </div>
+      <div className="relative z-10">
       <div className="mb-stack-lg text-center md:text-left">
         <h1 className="font-display max-w-2xl text-3xl font-extrabold leading-tight text-on-surface md:text-4xl">
           Temukan di sekitarmu.
@@ -239,6 +245,7 @@ export default function HomePage() {
       >
         <BarterMatchForm />
       </Modal>
+      </div>
     </div>
   );
 }

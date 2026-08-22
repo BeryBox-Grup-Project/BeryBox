@@ -1,11 +1,8 @@
 import axios from 'axios';
-
-const apiUrl = typeof import.meta.env.VITE_API_URL === 'string'
-  ? import.meta.env.VITE_API_URL.trim().replace(/\/+$/, '')
-  : '';
+import { API_URL } from '../lib/config';
 
 export const http = axios.create({
-  baseURL: apiUrl,
+  baseURL: API_URL,
 });
 
 http.interceptors.request.use((config) => {
@@ -26,7 +23,7 @@ http.interceptors.response.use(
     }
     error.userMessage = status
       ? message
-      : 'Tidak bisa terhubung ke API. Restart server di port 3000, lalu restart CMS (port 4174).';
+      : 'Tidak bisa terhubung ke API. Coba refresh, atau cek koneksi server.';
     return Promise.reject(error);
   },
 );

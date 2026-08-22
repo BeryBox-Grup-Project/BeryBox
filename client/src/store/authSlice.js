@@ -1,7 +1,8 @@
 import { createSlice } from '@reduxjs/toolkit';
 import { authApi } from '../api';
+import { CMS_URL } from '../lib/config';
 
-export const CMS_ORIGIN = import.meta.env.VITE_CMS_URL || 'http://127.0.0.1:4174';
+export const CMS_ORIGIN = CMS_URL;
 
 const authSlice = createSlice({
   name: 'auth',

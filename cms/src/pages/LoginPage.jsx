@@ -8,8 +8,7 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Field, Input } from '../components/ui/Input';
 import { useUi } from '../context/UiContext';
-
-const CLIENT_URL = import.meta.env.VITE_CLIENT_URL || 'http://localhost:5173';
+import { CLIENT_URL } from '../lib/config';
 
 export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' });

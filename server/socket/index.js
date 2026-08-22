@@ -17,17 +17,8 @@ function emitNewMessage(conversationId, payload) {
   if (ioInstance) ioInstance.to(`conversation:${conversationId}`).emit('new_message', payload);
 }
 
-function emitMessageEvents({ conversation, message, senderUsername }) {
+function emitMessageEvents({ conversation, message }) {
   emitNewMessage(conversation.id, message);
-  const receiverId = message.senderId === conversation.userAId
-    ? conversation.userBId
-    : conversation.userAId;
-  emitNotification(receiverId, {
-    type: 'message',
-    requestId: null,
-    conversationId: conversation.id,
-    message: `${senderUsername} sent you a message`,
-  });
 }
 
 function configureSocket(io) {
@@ -58,9 +49,43 @@ function configureSocket(io) {
         if (!conversation || ![conversation.userAId, conversation.userBId].includes(socket.user.id)) {
           return;
         }
+        await Promise.all([...socket.rooms]
+          .filter((room) => room.startsWith('conversation:'))
+          .map((room) => socket.leave(room)));
         await socket.join(`conversation:${conversation.id}`);
       } catch {
         // Private room failures are intentionally ignored.
+      }
+    });
+
+    socket.on('typing', async (payload = {}) => {
+      try {
+        const conversationId = Number(payload.conversationId);
+        if (!Number.isInteger(conversationId) || conversationId < 1) return;
+        const conversation = await Conversation.findByPk(conversationId);
+        if (!conversation || ![conversation.userAId, conversation.userBId].includes(socket.user.id)) {
+          return;
+        }
+        socket.to(`conversation:${conversationId}`).emit('user_typing', {
+          conversationId,
+          userId: socket.user.id,
+          username: socket.authUser?.username || 'User',
+        });
+      } catch {
+        // Typing signals are best-effort.
+      }
+    });
+
+    socket.on('stop_typing', async (payload = {}) => {
+      try {
+        const conversationId = Number(payload.conversationId);
+        if (!Number.isInteger(conversationId) || conversationId < 1) return;
+        socket.to(`conversation:${conversationId}`).emit('user_stop_typing', {
+          conversationId,
+          userId: socket.user.id,
+        });
+      } catch {
+        // Typing signals are best-effort.
       }
     });
 
@@ -74,8 +99,18 @@ function configureSocket(io) {
           body: payload.body,
         });
         emitMessageEvents({
-          ...result,
-          senderUsername: socket.authUser.username,
+          conversation: result.conversation,
+          message: result.message,
+        });
+        const { notify } = require('../services/notificationService');
+        const receiverId = result.message.senderId === result.conversation.userAId
+          ? result.conversation.userBId
+          : result.conversation.userAId;
+        await notify(receiverId, {
+          type: 'message',
+          requestId: null,
+          conversationId: result.conversation.id,
+          message: `${socket.authUser.username} sent you a message`,
         });
       } catch {
         // Invalid or unauthorized socket messages are intentionally ignored.
@@ -85,10 +120,9 @@ function configureSocket(io) {
 }
 
 function initializeSocket(server) {
-  const allowedOrigins = [process.env.CLIENT_ORIGIN, process.env.CMS_ORIGIN].filter(Boolean);
   const io = new Server(server, {
     cors: {
-      origin: allowedOrigins,
+      origin: '*',
     },
   });
   setIo(io);

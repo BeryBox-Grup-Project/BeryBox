@@ -38,7 +38,7 @@ async function create(req, res, next) {
       || body.rating < 1
       || body.rating > 5
       || typeof body.comment !== 'string'
-      || body.comment.length < 5
+      || !body.comment.trim()
     ) {
       throw createError(400, 'Validation error');
     }
@@ -95,4 +95,20 @@ async function create(req, res, next) {
   }
 }
 
-module.exports = { create };
+async function listForUser(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) throw createError(404, 'Not found');
+    const user = await User.findByPk(id);
+    if (!user) throw createError(404, 'Not found');
+    const reviews = await Review.findAll({
+      where: { toUserId: id },
+      order: [['createdAt', 'DESC']],
+    });
+    return res.status(200).json(reviews.map(reviewResponse));
+  } catch (error) {
+    return next(error);
+  }
+}
+
+module.exports = { create, listForUser };

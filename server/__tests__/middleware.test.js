@@ -56,3 +56,17 @@ describe('centralized error handler', () => {
     expect(next).toHaveBeenCalled();
   });
 });
+
+describe('CORS origins', () => {
+  const app = require('../app');
+  const request = require('supertest');
+
+  test('allows any origin including unknown hosts', async () => {
+    const allowed = await request(app).options('/login').set('Origin', 'http://localhost:5173')
+      .set('Access-Control-Request-Method', 'POST');
+    expect(allowed.headers['access-control-allow-origin']).toBe('*');
+    const other = await request(app).options('/login').set('Origin', 'http://evil.test')
+      .set('Access-Control-Request-Method', 'POST');
+    expect(other.headers['access-control-allow-origin']).toBe('*');
+  });
+});

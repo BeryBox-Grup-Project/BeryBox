@@ -5,14 +5,9 @@ const { signToken } = require('../helpers/jwt');
 db.sequelize.options.logging = false;
 
 async function cleanDb() {
-  await db.Message.destroy({ where: {}, truncate: false });
-  await db.Review.destroy({ where: {}, truncate: false });
-  await db.Report.destroy({ where: {}, truncate: false });
-  await db.Request.destroy({ where: {}, truncate: false });
-  await db.Conversation.destroy({ where: {}, truncate: false });
-  await db.Organization.destroy({ where: {}, truncate: false });
-  await db.Item.destroy({ where: {}, truncate: false });
-  await db.User.destroy({ where: {}, truncate: false });
+  await db.sequelize.query(
+    'TRUNCATE TABLE "Messages","Reviews","Reports","Notifications","Shipments","Requests","Conversations","Organizations","Items","Users" RESTART IDENTITY CASCADE',
+  );
 }
 
 let userSequence = 0;

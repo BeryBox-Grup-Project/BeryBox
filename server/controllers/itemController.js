@@ -5,6 +5,7 @@ const { suggestShipping } = require('../helpers/shipping');
 const { isItemEligible } = require('../helpers/eligibility');
 const { stripCoordinates } = require('../helpers/geoPrivacy');
 const { isImageKitUrl } = require('../helpers/imagekit');
+const { parsePagination, searchTerm, paginateArray } = require('../helpers/pagination');
 const nominatim = require('../helpers/nominatim');
 
 const ITEM_TYPES = ['public', 'organization', 'barter'];
@@ -19,6 +20,10 @@ const CREATE_FIELDS = [
   'latitude',
   'longitude',
   'imageUrl',
+  'wantedTitle',
+  'wantedDescription',
+  'wantedImageUrl',
+  'wantedCategory',
 ];
 const UPDATE_FIELDS = [
   'title',
@@ -29,8 +34,12 @@ const UPDATE_FIELDS = [
   'imageUrl',
   'latitude',
   'longitude',
+  'wantedTitle',
+  'wantedDescription',
+  'wantedImageUrl',
+  'wantedCategory',
 ];
-const OWNER_ATTRIBUTES = ['id', 'username', 'ratingAvg'];
+const OWNER_ATTRIBUTES = ['id', 'username', 'ratingAvg', 'photoUrl'];
 
 function createError(status, message) {
   const error = new Error(message);
@@ -98,11 +107,16 @@ async function serializeItem(item, { coordinates, includeCoordinates = false } =
     addressLabel: item.addressLabel,
     pendingClaimCount: await pendingClaimCount(item),
     imageUrl: item.imageUrl,
+    wantedTitle: item.wantedTitle,
+    wantedDescription: item.wantedDescription,
+    wantedImageUrl: item.wantedImageUrl,
+    wantedCategory: item.wantedCategory,
     status: item.status,
     owner: item.owner ? {
       id: item.owner.id,
       username: item.owner.username,
       ratingAvg: item.owner.ratingAvg,
+      photoUrl: item.owner.photoUrl || null,
     } : undefined,
   };
 
@@ -117,31 +131,58 @@ async function serializeItem(item, { coordinates, includeCoordinates = false } =
 
 async function findItemWithOwner(id) {
   return Item.findByPk(id, {
-    include: [{ model: User, as: 'owner', attributes: OWNER_ATTRIBUTES }],
+    include: [{ model: User, as: 'owner', attributes: [...OWNER_ATTRIBUTES, 'status'] }],
   });
 }
 
 async function list(req, res, next) {
   try {
-    const { type, category, lat, lng } = req.query;
+    const { type, category, lat, lng, q, sort, ownerId: ownerIdQuery } = req.query;
     if ((type && !ITEM_TYPES.includes(type)) || (category && !ITEM_CATEGORIES.includes(category))) {
       throw createError(400, 'Validation error');
     }
+    if (sort !== undefined && !['newest', 'oldest', 'nearby'].includes(sort)) {
+      throw createError(400, 'Validation error');
+    }
+    const ownerId = ownerIdQuery !== undefined ? Number(ownerIdQuery) : null;
+    if (ownerIdQuery !== undefined && (!Number.isInteger(ownerId) || ownerId < 1)) {
+      throw createError(400, 'Validation error');
+    }
 
+    const { page, limit } = parsePagination(req.query);
     const coordinates = lat !== undefined && lng !== undefined ? parseCoordinates(lat, lng) : null;
     const where = { status: 'available' };
     if (type) where.type = type;
     if (category) where.category = category;
+    if (ownerId) where.ownerId = ownerId;
+    const term = searchTerm(q);
+    if (term) {
+      where[Op.or] = [
+        { title: { [Op.iLike]: `%${term}%` } },
+        { description: { [Op.iLike]: `%${term}%` } },
+      ];
+    }
 
     const items = await Item.findAll({
       where,
-      include: [{ model: User, as: 'owner', attributes: OWNER_ATTRIBUTES }],
-      order: [['createdAt', 'DESC']],
+      include: [{
+        model: User,
+        as: 'owner',
+        attributes: OWNER_ATTRIBUTES,
+        where: { status: { [Op.ne]: 'banned' } },
+      }],
+      order: [['createdAt', sort === 'oldest' ? 'ASC' : 'DESC']],
     });
     const serializedItems = await Promise.all(items.map((item) => serializeItem(item, { coordinates })));
-    if (coordinates) serializedItems.sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
+    if (coordinates && (sort === 'nearby' || !sort)) {
+      serializedItems.sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
+    }
 
-    return res.status(200).json(serializedItems.map(stripCoordinates));
+    return res.status(200).json(paginateArray(
+      serializedItems.map(stripCoordinates),
+      page,
+      limit,
+    ));
   } catch (error) {
     return next(error);
   }
@@ -182,7 +223,7 @@ async function detail(req, res, next) {
     if (!Number.isInteger(id) || id < 1) throw createError(404, 'Not found');
 
     const item = await findItemWithOwner(id);
-    if (!item) throw createError(404, 'Not found');
+    if (!item || item.owner?.status === 'banned') throw createError(404, 'Not found');
 
     const { lat, lng } = req.query;
     const coordinates = lat !== undefined && lng !== undefined ? parseCoordinates(lat, lng) : null;
@@ -211,6 +252,7 @@ async function detail(req, res, next) {
           id: claim.fromUser.id,
           username: claim.fromUser.username,
           ratingAvg: claim.fromUser.ratingAvg,
+          photoUrl: claim.fromUser.photoUrl || null,
         },
       }));
     }
@@ -235,6 +277,10 @@ async function create(req, res, next) {
       latitude,
       longitude,
       imageUrl,
+      wantedTitle = null,
+      wantedDescription = null,
+      wantedImageUrl = null,
+      wantedCategory = null,
     } = req.body;
     if (
       !ITEM_TYPES.includes(type)
@@ -253,6 +299,36 @@ async function create(req, res, next) {
     const eligibility = isItemEligible({ condition, category, description });
     if (!eligibility.eligible) throw createError(400, eligibility.message);
     if (!isImageKitUrl(imageUrl)) throw createError(400, 'Invalid image url');
+    if (req.user.role === 'organization' && type !== 'organization') {
+      throw createError(400, 'Validation error');
+    }
+    if (req.user.role !== 'organization' && type === 'organization') {
+      throw createError(400, 'Validation error');
+    }
+
+    let wanted = {
+      wantedTitle: null,
+      wantedDescription: null,
+      wantedImageUrl: null,
+      wantedCategory: null,
+    };
+    if (type === 'barter') {
+      if (
+        typeof wantedTitle !== 'string'
+        || !wantedTitle.trim()
+        || typeof wantedImageUrl !== 'string'
+        || !isImageKitUrl(wantedImageUrl)
+        || (wantedCategory != null && !ITEM_CATEGORIES.includes(wantedCategory))
+      ) {
+        throw createError(400, 'Validation error');
+      }
+      wanted = {
+        wantedTitle: wantedTitle.trim(),
+        wantedDescription: typeof wantedDescription === 'string' ? wantedDescription : null,
+        wantedImageUrl,
+        wantedCategory: wantedCategory || null,
+      };
+    }
 
     const addressLabel = await nominatim.reverse(latitude, longitude);
     const item = await Item.create({
@@ -268,6 +344,7 @@ async function create(req, res, next) {
       addressLabel,
       imageUrl,
       status: 'available',
+      ...wanted,
     });
     const createdItem = await findItemWithOwner(item.id);
     return res.status(201).json(await serializeItem(createdItem, { includeCoordinates: true }));
@@ -335,4 +412,16 @@ async function cancel(req, res, next) {
   }
 }
 
-module.exports = { list, mine, detail, create, update, cancel };
+async function complete(req, res, next) {
+  try {
+    if (req.item.type !== 'organization') throw createError(400, 'Validation error');
+
+    await req.item.update({ status: 'completed' });
+    const updatedItem = await findItemWithOwner(req.item.id);
+    return res.status(200).json(await serializeItem(updatedItem, { includeCoordinates: true }));
+  } catch (error) {
+    return next(error);
+  }
+}
+
+module.exports = { list, mine, detail, create, update, cancel, complete };

@@ -51,13 +51,14 @@ async function create(req, res, next) {
 
 async function inbox(req, res, next) {
   try {
+    const myId = Number(req.user.id);
     const conversations = await Conversation.findAll({
       where: {
-        [Op.or]: [{ userAId: req.user.id }, { userBId: req.user.id }],
+        [Op.or]: [{ userAId: myId }, { userBId: myId }],
       },
       include: [
-        { model: User, as: 'userA', attributes: ['id', 'username', 'ratingAvg'] },
-        { model: User, as: 'userB', attributes: ['id', 'username', 'ratingAvg'] },
+        { model: User, as: 'userA', attributes: ['id', 'username', 'ratingAvg', 'photoUrl'] },
+        { model: User, as: 'userB', attributes: ['id', 'username', 'ratingAvg', 'photoUrl'] },
         {
           model: Message,
           attributes: ['id', 'body', 'senderId', 'createdAt'],
@@ -69,29 +70,32 @@ async function inbox(req, res, next) {
       order: [['updatedAt', 'DESC']],
     });
 
-    const response = conversations.map((conversation) => {
-      const otherUser = req.user.id === conversation.userAId
-        ? conversation.userB
-        : conversation.userA;
-      const lastMessage = conversation.Messages[0];
-      return {
-        id: conversation.id,
-        userAId: conversation.userAId,
-        userBId: conversation.userBId,
-        itemId: conversation.itemId,
-        otherUser: {
-          id: otherUser.id,
-          username: otherUser.username,
-          ratingAvg: otherUser.ratingAvg,
-        },
-        lastMessage: lastMessage ? {
-          id: lastMessage.id,
-          body: lastMessage.body,
-          senderId: lastMessage.senderId,
-          createdAt: lastMessage.createdAt,
-        } : null,
-      };
-    });
+    const response = conversations
+      .filter((conversation) => conversation.userAId === myId || conversation.userBId === myId)
+      .map((conversation) => {
+        const otherUser = myId === conversation.userAId
+          ? conversation.userB
+          : conversation.userA;
+        const lastMessage = conversation.Messages[0];
+        return {
+          id: conversation.id,
+          userAId: conversation.userAId,
+          userBId: conversation.userBId,
+          itemId: conversation.itemId,
+          otherUser: otherUser ? {
+            id: otherUser.id,
+            username: otherUser.username,
+            ratingAvg: otherUser.ratingAvg,
+            photoUrl: otherUser.photoUrl || null,
+          } : null,
+          lastMessage: lastMessage ? {
+            id: lastMessage.id,
+            body: lastMessage.body,
+            senderId: lastMessage.senderId,
+            createdAt: lastMessage.createdAt,
+          } : null,
+        };
+      });
     return res.status(200).json(response);
   } catch (error) {
     return next(error);

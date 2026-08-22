@@ -38,7 +38,6 @@ describe('Organizations and admin API', () => {
 
   test.each([
     [body({ type: 'bad' })],
-    [body({ description: 'short' })],
     [body({ name: '' })],
     [body({ latitude: 'x' })],
     [body({ longitude: Infinity })],
@@ -60,19 +59,19 @@ describe('Organizations and admin API', () => {
     await db.Organization.create({ userId: users[1].id, ...body({ name: 'Far', latitude: -7.2, longitude: 107.9 }), verified: 'approved' });
     await db.Organization.create({ userId: users[2].id, ...body({ name: 'Hidden' }), verified: 'rejected' });
     const response = await request(app).get('/organizations?lat=-6.91&lng=107.6').set(authorization(normal));
-    expect(response.body).toHaveLength(2);
-    expect(response.body[0].id).toBe(approvedNear.id);
-    expect(response.body.every((organization) => !Object.hasOwn(organization, 'latitude'))).toBe(true);
+    expect(response.body.data).toHaveLength(2);
+    expect(response.body.data[0].id).toBe(approvedNear.id);
+    expect(response.body.data.every((organization) => Object.hasOwn(organization, 'latitude'))).toBe(true);
     expect((await request(app).get('/organizations?lat=&lng=x').set(authorization(normal))).status).toBe(400);
     const incomplete = await request(app).get('/organizations?lat=-6.9').set(authorization(normal));
-    expect(incomplete.body[0]).not.toHaveProperty('distanceKm');
+    expect(incomplete.body.data[0]).not.toHaveProperty('distanceKm');
   });
 
   test('organization detail handles shipping, not found, and accepted coordinate privacy', async () => {
     const organization = await db.Organization.create({ userId: orgUser.id, ...body(), verified: 'approved' });
     const detail = await request(app).get(`/organizations/${organization.id}?lat=-6.9&lng=107.6`).set(authorization(normal));
-    expect(detail.body.suggestedShipping).toEqual(['pickup', 'gosend']);
-    expect(detail.body).not.toHaveProperty('latitude');
+    expect(detail.body.suggestedShipping).toEqual(['pickup', 'courier_agent']);
+    expect(detail.body).toHaveProperty('latitude');
     const item = await createItem(normal.id, { type: 'organization' });
     await db.Request.create({ type: 'org_offer', fromUserId: normal.id, toUserId: orgUser.id, itemId: item.id, shippingMethod: 'pickup', status: 'accepted' });
     const allowed = await request(app).get(`/organizations/${organization.id}`).set(authorization(normal));
@@ -111,5 +110,23 @@ describe('Organizations and admin API', () => {
     expect((await request(app).patch(`/admin/reports/${open.id}`).set(authorization(admin)).send({ status: 'resolved' })).body.status).toBe('resolved');
     expect((await request(app).patch(`/admin/reports/${open.id}`).set(authorization(admin)).send({ status: 'open' })).status).toBe(400);
     expect((await request(app).patch('/admin/reports/999999').set(authorization(admin)).send({ status: 'resolved' })).status).toBe(404);
+  });
+
+  test('syncs nearby OSM places into the listing', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        elements: [{
+          id: 88, type: 'node', lat: -6.91, lon: 107.6,
+          tags: {
+            name: 'Panti OSM',
+            amenity: 'orphanage',
+            description: 'Panti dari peta untuk diuji sinkron listing.',
+          },
+        }],
+      }),
+    });
+    const response = await request(app).get('/organizations?lat=-6.91&lng=107.6').set(authorization(normal));
+    expect(response.body.data.some((row) => row.googlePlaceId === 'osm:node:88')).toBe(true);
   });
 });

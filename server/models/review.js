@@ -21,7 +21,7 @@ module.exports = (sequelize, DataTypes) => {
     comment: {
       type: DataTypes.TEXT,
       allowNull: false,
-      validate: { len: [5] },
+      validate: { len: [1] },
     },
   }, {
     sequelize,

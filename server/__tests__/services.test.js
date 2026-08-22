@@ -48,6 +48,13 @@ describe('AI service fallbacks', () => {
       candidates: [{ kind: 'item', name: 'Hanya nama' }],
     })).toContain('Hanya nama');
     await expect(aiService.generateReply({ message: 'resep nasi goreng' })).resolves.toBe(OFF_TOPIC_REPLY);
+    await expect(aiService.generateReply({ message: 'siapa pemain bola terhebat' })).resolves.toBe(OFF_TOPIC_REPLY);
+    expect(geminiService.generateReply).not.toHaveBeenCalled();
+    geminiService.generateReply.mockResolvedValueOnce('BeryBox aman jika klaim dan pembayaran tetap di aplikasi.');
+    await expect(aiService.generateReply({ message: 'apakah website ini aman?' }))
+      .resolves.toMatch(/aman/i);
+    expect(geminiService.generateReply).toHaveBeenCalled();
+    expect(aiService.localFallbackReply({ message: 'cara klaim gimana?', candidates: [] })).toBe(SITE_REPLY);
     expect(new aiService.AIServiceUnavailable().message).toBe('AI service unavailable');
   });
 });
@@ -110,6 +117,12 @@ describe('AI ranking helpers', () => {
     expect(buildPrompt({ message: 'halo', candidates: [{ kind: 'item' }] })).toContain('Intent:');
     expect(classifyChatIntent('')).toBe('site');
     expect(classifyChatIntent(null)).toBe('site');
+    expect(classifyChatIntent('apakah website ini aman?')).toBe('site');
+    expect(classifyChatIntent('cara klaim gimana?')).toBe('site');
+    expect(classifyChatIntent('cara ajukan bantuan gimana?')).toBe('site');
+    expect(classifyChatIntent('aku sedang mencari kasur apakah ada?')).toBe('recommendation');
+    expect(classifyChatIntent('siapa pemain bola terhebat')).toBe('off_topic');
+    expect(candidateKindsForMessage('aku sedang mencari kasur apakah ada?')).toEqual(['item']);
     expect(candidateKindsForMessage(undefined)).toEqual(['organization', 'item']);
     const nearby = rankAndSelectCandidates('panti terdekat', [
       { context: { kind: 'organization', name: 'Far', description: 'panti asuhan' }, suggestion: { distanceKm: 9 } },

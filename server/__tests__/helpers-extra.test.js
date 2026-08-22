@@ -125,8 +125,8 @@ describe('midtrans helper', () => {
   });
 
   test('creates clients, signs notifications, and maps paid statuses', async () => {
-    process.env.MIDTRANS_SERVER_KEY = 'server';
-    process.env.MIDTRANS_CLIENT_KEY = 'client';
+    process.env.MIDTRANS_SERVER_KEY = 'server,';
+    process.env.MIDTRANS_CLIENT_KEY = '"client"';
     process.env.MIDTRANS_IS_PRODUCTION = 'true';
     expect(midtrans.isConfigured()).toBe(true);
     expect(midtrans.clientKey()).toBe('client');

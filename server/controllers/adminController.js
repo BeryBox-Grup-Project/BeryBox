@@ -268,7 +268,7 @@ async function reports(req, res, next) {
       where,
       include: [
         { model: User, as: 'reporter', attributes: ['id', 'username', 'email', 'status', 'warningCount'] },
-        { model: Request },
+        { model: Request, required: false },
       ],
       order: [['createdAt', 'DESC']],
     });

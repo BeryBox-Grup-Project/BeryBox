@@ -3,6 +3,16 @@ function errorHandler(error, req, res, next) {
     return next(error);
   }
 
+  const origin = req.headers?.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept');
+
   let status = Number.isInteger(error.status) ? error.status : 500;
   let message = error.message;
 

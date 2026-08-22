@@ -4,6 +4,7 @@ const { adminAuthorization, organizationAuthorization } = require('../middleware
 function responseMock() {
   return {
     headersSent: false,
+    setHeader: jest.fn(),
     status: jest.fn().mockReturnThis(),
     json: jest.fn().mockReturnThis(),
   };
@@ -64,9 +65,18 @@ describe('CORS origins', () => {
   test('allows any origin including unknown hosts', async () => {
     const allowed = await request(app).options('/login').set('Origin', 'http://localhost:5173')
       .set('Access-Control-Request-Method', 'POST');
-    expect(allowed.headers['access-control-allow-origin']).toBe('*');
+    expect(allowed.headers['access-control-allow-origin']).toBe('http://localhost:5173');
     const other = await request(app).options('/login').set('Origin', 'http://evil.test')
       .set('Access-Control-Request-Method', 'POST');
-    expect(other.headers['access-control-allow-origin']).toBe('*');
+    expect(other.headers['access-control-allow-origin']).toBe('http://evil.test');
+  });
+
+  test('keeps CORS headers on API errors', async () => {
+    const response = await request(app)
+      .post('/reports')
+      .set('Origin', 'https://www.berybox.web.id')
+      .send({});
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(response.headers['access-control-allow-origin']).toBe('https://www.berybox.web.id');
   });
 });

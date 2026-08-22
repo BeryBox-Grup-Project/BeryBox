@@ -231,7 +231,15 @@ async function match(req, res, next) {
     if (typeof body.category === 'string' && body.category.trim()) {
       where.category = body.category;
     }
-    const items = await Item.findAll({ where });
+    const items = await Item.findAll({
+      where,
+      include: [{
+        model: User,
+        as: 'owner',
+        attributes: [],
+        where: { status: { [Op.ne]: 'banned' } },
+      }],
+    });
     const pool = items
       .filter((item) => item.latitude != null && item.longitude != null && item.ownerId !== user.id)
       .map((item) => barterCandidate(user, item));

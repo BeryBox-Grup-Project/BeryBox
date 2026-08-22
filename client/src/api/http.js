@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { API_URL } from '../lib/config';
 
 export const http = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
+  baseURL: API_URL,
 });
 
 http.interceptors.request.use((config) => {
@@ -27,7 +28,7 @@ http.interceptors.response.use(
         window.location.assign('/login');
       }
     }
-    error.userMessage = status ? message : 'Tidak bisa terhubung ke server. Pastikan API berjalan di port 3000.';
+    error.userMessage = status ? message : 'Tidak bisa terhubung ke server. Coba refresh, atau cek koneksi API.';
     return Promise.reject(error);
   },
 );

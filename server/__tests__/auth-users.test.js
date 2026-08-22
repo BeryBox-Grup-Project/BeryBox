@@ -2,6 +2,7 @@ jest.mock('../helpers/nominatim', () => ({ reverse: jest.fn() }));
 jest.mock('../helpers/imagekit', () => ({
   getImageKit: () => ({
     getAuthenticationParameters: () => ({ token: 'test-token', expire: 1710000000, signature: 'test-signature' }),
+    upload: jest.fn(async () => ({ url: 'https://ik.imagekit.io/test/upload.jpg' })),
   }),
   isImageKitUrl: jest.fn(),
 }));
@@ -140,5 +141,14 @@ describe('authentication and public user API', () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ token: 'test-token', expire: 1710000000, signature: 'test-signature' });
     expect(response.body).not.toHaveProperty('privateKey');
+  });
+
+  test('uploads images through the API', async () => {
+    const user = await createUser();
+    const created = await request(app).post('/images/upload').set(authorization(user))
+      .send({ file: 'data:image/png;base64,aaa', fileName: 'box.png' });
+    expect(created.status).toBe(200);
+    expect(created.body.url).toBe('https://ik.imagekit.io/test/upload.jpg');
+    expect((await request(app).post('/images/upload').set(authorization(user)).send({})).status).toBe(400);
   });
 });

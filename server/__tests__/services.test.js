@@ -96,6 +96,11 @@ describe('AI ranking helpers', () => {
       { context: { title: 'lensa', wantedTitle: 'kamera' }, suggestion: { distanceKm: 2 } },
     ]);
     expect(byDistance[0].suggestion.distanceKm).toBe(2);
+    const fallback = rankBarterCandidates('zebra', 'unicorn', [
+      { context: { title: 'Meja', wantedTitle: 'kursi' }, suggestion: { distanceKm: 4 } },
+      { context: { title: 'Buku', wantedTitle: 'lampu' }, suggestion: { distanceKm: 1 } },
+    ]);
+    expect(fallback[0].context.title).toBe('Buku');
 
     const chat = rankAndSelectCandidates('barang kamera', [
       { context: { kind: 'item', title: 'Kamera analog', description: 'body kamera' }, suggestion: { distanceKm: 2 } },

@@ -1,9 +1,7 @@
 #!/usr/bin/env node
 
-
-if(process.env.NODE_ENV !== 'production') {  
-    require('dotenv').config({ path: path.join(__dirname, '.env'), quiet: true });
-  }  
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true });
 
 const http = require('http');
 const app = require('../app');
@@ -14,3 +12,4 @@ const server = http.createServer(app);
 initializeSocket(server);
 
 server.listen(port);
+

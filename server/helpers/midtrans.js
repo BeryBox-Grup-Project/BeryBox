@@ -3,7 +3,8 @@ const midtransClient = require('midtrans-client');
 
 function envValue(name) {
   const value = process.env[name];
-  return typeof value === 'string' ? value.trim() : '';
+  if (typeof value !== 'string') return '';
+  return value.trim().replace(/^['"]|['"]$/g, '').replace(/,+$/, '').trim();
 }
 
 function isConfigured() {
